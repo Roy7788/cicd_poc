@@ -1,0 +1,125 @@
+# Full CI/CD POC Pipeline
+# Flow: Flutter build+test -> SonarQube quality gate -> Karate functional tests -> APK artifact
+# Play Store deployment YAHA NAHI HAI (POC ke liye zarurat nahi)
+
+name: Flutter Full CI/CD POC
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  # ---------- JOB 1: Flutter build + unit/widget (functional) tests ----------
+  flutter-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Flutter 3.24's bundled Gradle/Groovy needs Java 17.
+      # GitHub Actions ubuntu-latest ab default Java 21 deta hai, isliye
+      # explicitly Java 17 set karna zaroori hai warna Gradle build fail hoga
+      # (groovy.xml.QName resolve error).
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze code (lint / basic quality check)
+        run: flutter analyze
+
+      - name: Run functional/widget tests with coverage
+        run: flutter test --coverage
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+
+      - name: Upload coverage report (for SonarQube)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/lcov.info
+          retention-days: 7
+
+  # ---------- JOB 2: SonarQube Quality Gate ----------
+  sonarqube-scan:
+    needs: flutter-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # SonarQube ko full git history chahiye
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      # Agar quality gate fail ho (bugs/coverage threshold cross), pipeline yahin ruk jaayega
+      - name: Check Quality Gate status
+        uses: SonarSource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # ---------- JOB 3: Karate Functional/API Tests ----------
+  karate-functional-tests:
+    needs: sonarqube-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Run Karate functional tests
+        working-directory: ./karate_tests
+        run: mvn test
+
+      - name: Upload Karate test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: karate-report
+          path: karate_tests/target/karate-reports/
+          retention-days: 7
+
+  # ---------- JOB 4 (Optional): Deploy step - abhi disabled hai ----------
+  # deploy:
+  #   needs: karate-functional-tests
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Deploy to Firebase App Distribution / Play Store
+  #       run: echo "Deploy step - jab ready ho tab enable karna"
