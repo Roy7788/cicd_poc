@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cicd_poc/main.dart';
 
-// Functional tests: har test app ke ek "behavior" ko check karta hai
-// bina internal code implementation ki fikar kiye — sirf output/UI check hota hai
+// Functional tests: each test checks a UI behavior, not internal implementation
 
 void main() {
   testWidgets('Login fails with empty fields', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
 
-    // Directly login button daba do, kuch bhi bhare bina
+    // Tap login without entering anything
     await tester.tap(find.byKey(const Key('loginButton')));
     await tester.pump();
 

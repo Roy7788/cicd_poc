@@ -1,6 +1,5 @@
 Feature: Login API functional testing (POC)
-  # Public mock API (reqres.in) use kiya hai POC ke liye
-  # Apne real backend API se replace kar dena jab actual app pe apply karo
+  # Uses public mock API (reqres.in) - replace with your real backend when applying this to a real app
 
   Background:
     * url 'https://reqres.in/api'
