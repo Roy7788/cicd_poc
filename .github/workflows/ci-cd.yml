@@ -1,4 +1,4 @@
-# Flow: Flutter build+test -> SonarQube quality gate -> Karate + Cucumber functional tests -> APK artifact
+# Flow: Flutter test -> Build APK -> SonarQube quality gate -> Karate + Cucumber functional tests
 name: Flutter Full CI/CD POC
 
 on:
@@ -8,8 +8,8 @@ on:
     branches: [main]
 
 jobs:
-  # ---------- JOB 1: Flutter build + unit/widget (functional) tests ----------
-  flutter-test:
+  # ---------- JOB 1: Test (analyze + functional/widget tests) ----------
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -36,6 +36,35 @@ jobs:
       - name: Run functional/widget tests with coverage
         run: flutter test --coverage
 
+      - name: Upload coverage report (for SonarQube)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/lcov.info
+          retention-days: 7
+
+  # ---------- JOB 2: Build (APK) - runs only after test passes ----------
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: Install dependencies
+        run: flutter pub get
+
       - name: Build debug APK
         run: flutter build apk --debug
 
@@ -46,16 +75,9 @@ jobs:
           path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7
 
-      - name: Upload coverage report (for SonarQube)
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage/lcov.info
-          retention-days: 7
-
-  # ---------- JOB 2: SonarQube Quality Gate ----------
+  # ---------- JOB 3: SonarQube Quality Gate ----------
   sonarqube-scan:
-    needs: flutter-test
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -77,7 +99,7 @@ jobs:
 
       # Quality Gate check step omitted (known bug in the action); check results manually on SonarCloud
 
-  # ---------- JOB 3: Karate Functional/API Tests ----------
+  # ---------- JOB 4: Karate Functional/API Tests ----------
   karate-functional-tests:
     needs: sonarqube-scan
     runs-on: ubuntu-latest
@@ -103,7 +125,7 @@ jobs:
           path: karate_tests/target/karate-reports/
           retention-days: 7
 
-  # ---------- JOB 4: Cucumber Functional/API Tests ----------
+  # ---------- JOB 5: Cucumber Functional/API Tests ----------
   cucumber-functional-tests:
     needs: sonarqube-scan
     runs-on: ubuntu-latest
@@ -126,10 +148,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cucumber-report
-          path: cucumber_tests/target/cucumber-reports/
+          path: cucumber_tests/target/surefire-reports/
           retention-days: 7
 
-  # ---------- JOB 5 (Optional): Deploy step - currently disabled ----------
+  # ---------- JOB 6 (Optional): Deploy step - currently disabled ----------
   # deploy:
   #   needs: [karate-functional-tests, cucumber-functional-tests]
   #   runs-on: ubuntu-latest
