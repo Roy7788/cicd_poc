@@ -68,4 +68,12 @@ public class LoginSteps {
     public void checkUserId(int id) {
         assertEquals(id, response.jsonPath().getInt("data.id"));
     }
+
+    @Then("the home screen should show the user's name and avatar")
+    public void checkHomeScreenData() {
+        String firstName = response.jsonPath().getString("data.first_name");
+        String avatar = response.jsonPath().getString("data.avatar");
+        assertNotNull(firstName);
+        assertNotNull(avatar);
+    }
 }

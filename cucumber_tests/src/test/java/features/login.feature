@@ -18,3 +18,12 @@ Feature: Login API functional testing (Cucumber)
     When I request the user with id 2
     Then the response status should be 200
     And the response user id should be 2
+
+  Scenario: Home screen loads user profile data after successful login
+    Given the login API base url
+    When I send a login request with email "eve.holt@reqres.in" and password "cityslicka"
+    Then the response status should be 200
+    And the response should contain a token
+    When I request the user with id 2
+    Then the response status should be 200
+    And the home screen should show the user's name and avatar
