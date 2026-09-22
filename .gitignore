@@ -38,3 +38,6 @@ coverage/
 
 # Karate/Maven
 karate_tests/target/
+
+#CUCUMBER/Maven
+cucumber_tests/target/
