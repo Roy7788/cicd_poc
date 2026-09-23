@@ -151,10 +151,22 @@ jobs:
           path: cucumber_tests/target/surefire-reports/
           retention-days: 7
 
-  # ---------- JOB 6 (Optional): Deploy step - currently disabled ----------
-  # deploy:
-  #   needs: [karate-functional-tests, cucumber-functional-tests]
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Deploy to Firebase App Distribution / Play Store
-  #       run: echo "Enable this step when ready to deploy"
+    # ---------- JOB 6: Deploy debug APK to Firebase App Distribution ----------
+  deploy:
+    needs: [karate-functional-tests, cucumber-functional-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: app-debug-apk
+          path: build/app/outputs/flutter-apk/
+
+      - name: Upload to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          groups: testers
+          file: build/app/outputs/flutter-apk/app-debug.apk
+          releaseNotes: "Automated build from CI/CD pipeline - commit ${{ github.sha }}"
